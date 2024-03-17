@@ -62,22 +62,35 @@ class LSTM(nn.Module):
             - c (`torch.FloatTensor` of shape `(1, batch_size, hidden_size)`)
         """
         # # ==========================
-        h, c = hidden_states
-        batch_size, seq_len, _ = inputs.size()
-        outputs = []
+        try:
+            if not isinstance(inputs, torch.Tensor):
+                raise TypeError("inputs must be a torch.Tensor")
+            if not isinstance(hidden_states, tuple):
+                raise TypeError("hidden_states must be a tuple")
+            if inputs.dim() != 3:
+                raise ValueError("inputs must be a 3D tensor (batch_size, sequence_length, input_size)")
+            if hidden_states[0].dim() != 3 or hidden_states[1].dim() != 3:
+                raise ValueError("hidden_states must be 3D tensors")
 
-        for t in range(seq_len):
-            x_t = inputs[:, t, :]
-            i_t = torch.sigmoid(x_t @ self.w_ii.t() + self.b_ii + h.squeeze(0) @ self.w_hi.t() + self.b_hi)
-            f_t = torch.sigmoid(x_t @ self.w_if.t() + self.b_if + h.squeeze(0) @ self.w_hf.t() + self.b_hf)
-            g_t = torch.tanh(x_t @ self.w_ig.t() + self.b_ig + h.squeeze(0) @ self.w_hg.t() + self.b_hg)
-            o_t = torch.sigmoid(x_t @ self.w_io.t() + self.b_io + h.squeeze(0) @ self.w_ho.t() + self.b_ho)
-            c = f_t * c.squeeze(0) + i_t * g_t
-            h = o_t * torch.tanh(c)
-            outputs.append(h.unsqueeze(1))
+            h, c = hidden_states
+            batch_size, seq_len, _ = inputs.size()
+            outputs = []
 
-        outputs = torch.cat(outputs, dim=1)
-        return outputs, (h.unsqueeze(0), c.unsqueeze(0))
+            for t in range(seq_len):
+                x_t = inputs[:, t, :]
+                i_t = torch.sigmoid(x_t @ self.w_ii.t() + self.b_ii + h.squeeze(0) @ self.w_hi.t() + self.b_hi)
+                f_t = torch.sigmoid(x_t @ self.w_if.t() + self.b_if + h.squeeze(0) @ self.w_hf.t() + self.b_hf)
+                g_t = torch.tanh(x_t @ self.w_ig.t() + self.b_ig + h.squeeze(0) @ self.w_hg.t() + self.b_hg)
+                o_t = torch.sigmoid(x_t @ self.w_io.t() + self.b_io + h.squeeze(0) @ self.w_ho.t() + self.b_ho)
+                c = f_t * c.squeeze(0) + i_t * g_t
+                h = o_t * torch.tanh(c)
+                outputs.append(h.unsqueeze(1))
+
+            x = torch.cat(outputs, dim=1)
+            return x, (h.unsqueeze(0), c.unsqueeze(0))
+        except Exception as e:
+            print(f"Error in LSTM forward pass: {e}")
+            raise
         # # ==========================
 
 
@@ -133,11 +146,24 @@ class Encoder(nn.Module):
         """
 
         # # ==========================
-        embedded_inputs = self.embedding(inputs)
-        embedded_inputs_with_dropout = self.dropout(embedded_inputs)
-        output, hidden_states = self.rnn(embedded_inputs_with_dropout, hidden_states)
+        try:
+            if not isinstance(inputs, torch.Tensor):
+                raise TypeError("inputs must be a torch.Tensor")
+            if not isinstance(hidden_states, tuple):
+                raise TypeError("hidden_states must be a tuple")
+            if inputs.dim() != 2:
+                raise ValueError("inputs must be a 2D tensor (batch_size, sequence_length)")
+            if hidden_states[0].dim() != 3 or hidden_states[1].dim() != 3:
+                raise ValueError("hidden_states must be 3D tensors")
 
-        return output, hidden_states
+            embedded_inputs = self.embedding(inputs)
+            embedded_inputs_with_dropout = self.dropout(embedded_inputs)
+            x, hidden_states = self.rnn(embedded_inputs_with_dropout, hidden_states)
+
+            return x, hidden_states
+        except Exception as e:
+            print(f"Error in Encoder forward pass: {e}")
+            raise
         # # ==========================
 
     def initial_states(self, batch_size, device=None):
@@ -196,19 +222,19 @@ class DecoderAttn(nn.Module):
         """
 
         # # ==========================
+        if not isinstance(inputs, torch.Tensor):
+            raise TypeError("inputs must be a torch.Tensor")
+        if not isinstance(hidden_states, tuple) or len(hidden_states) != 2:
+            raise TypeError("hidden_states must be a tuple of (h, c) tensors")
+
+        # Apply attention if present
         if self.mlp_attn is not None:
-            attention_input = (hidden_states[0], inputs, inputs)
-            attention_output = self.mlp_attn(attention_input, mask)
-            if attention_output is None:
-                raise ValueError("Attention mechanism 'mlp_attn' returned None")
+            inputs = self.mlp_attn(inputs, mask)
 
-            # Unpack the output of the attention mechanism
-            context, _ = attention_output
-            inputs = torch.cat([inputs, context], dim=-1)
+        # Pass the inputs through the RNN
+        x, hidden_states = self.rnn(inputs, hidden_states)
 
-        outputs, hidden_states = self.rnn(inputs, hidden_states)
-
-        return outputs, hidden_states
+        return x, hidden_states
         # # ==========================
         
         
