@@ -1,7 +1,5 @@
 # Sentiment Analysis
 
-
-
 This project is part of the IFT 6135B - H2024 course under Prof. Aaron Courville. It contains the implementation and report for the sentiment analysis project on the Yelp Polarity dataset using Recurrent Neural Networks (RNNs) and Transformer models.  The goal of this assignment is to compare the performance of RNNs with various configurations of the Transformer model for sentiment analysis. The Yelp Polarity dataset is pre-processed using a BERT-based Hugging Face tokenizer, which outputs the padded sequence with a corresponding mask denoting where the padding is, and sentiment label.
 
 **Problem 1: Implementing an LSTM Encoder-Decoder with Soft Attention**
